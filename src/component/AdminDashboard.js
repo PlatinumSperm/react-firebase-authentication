@@ -9,70 +9,55 @@ import mqtt from 'mqtt';
 export default function AdminDashboard() {
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState(null);
-    const [mqttData, setMqttData] = useState({});
+    const [mqttData, setMqttData] = useState([]);
     const navigate = useNavigate();
-    const [client, setClient] = useState(null);
 
-    // Kiểm tra xem người dùng hiện tại có phải là admin không
+    // ✅ Kiểm tra admin
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
             if (!user || user.email !== 'admin@admin.com') {
                 navigate('/');
             }
         });
-
         return () => unsubscribe();
     }, [navigate]);
 
-    // Kết nối MQTT và quản lý dữ liệu theo user
+    // ✅ Kết nối MQTT và lấy dữ liệu từ topic thongtinbenhnhan
     useEffect(() => {
-        const mqttClient = mqtt.connect('mqtt://broker.hivemq.com:1883');
-        setClient(mqttClient);
+        const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt');
 
-        mqttClient.on('connect', () => {
+        client.on('connect', () => {
             console.log('Connected to MQTT broker');
-            // Khi có user được chọn, subscribe vào topic của user đó
-            if (selectedUser) {
-                const userTopic = `esp32/${selectedUser}/data`;
-                mqttClient.subscribe(userTopic);
-                console.log('Subscribed to:', userTopic);
-            }
+            client.subscribe('thongtinbenhnhan', (err) => {
+                if (!err) {
+                    console.log('Subscribed to thongtinbenhnhan');
+                }
+            });
         });
 
-        mqttClient.on('message', (topic, message) => {
+        client.on('message', (topic, message) => {
             try {
                 const data = JSON.parse(message.toString());
-                setMqttData(prev => {
-                    const userId = topic.split('/')[1]; // Lấy user ID từ topic
-                    const userHistory = prev[userId] || [];
-                    return {
-                        ...prev,
-                        [userId]: [
-                            {
-                                heart_rate: data.heart_rate,
-                                spo2: data.spo2,
-                                temperature: data.temperature,
-                                status: data.status,
-                                timestamp: data.timestamp
-                            },
-                            ...userHistory.slice(0, 49) // Giữ 50 bản ghi gần nhất
-                        ]
-                    };
-                });
+                setMqttData((prev) => [
+                    {
+                        heart_rate: data.heart_rate,
+                        spo2: data.spo2,
+                        status: data.status,
+                        timestamp: data.timestamp,
+                    },
+                    ...prev.slice(0, 49), // giữ 50 bản ghi gần nhất
+                ]);
             } catch (error) {
                 console.error('Error parsing MQTT message:', error);
             }
         });
 
         return () => {
-            if (selectedUser) {
-                mqttClient.unsubscribe(`esp32/${selectedUser}/data`);
-            }
-            mqttClient.end();
+            client.end();
         };
-    }, [selectedUser]);
+    }, []);
 
-    // Lấy danh sách người dùng từ Firestore
+    // ✅ Lấy danh sách người dùng từ Firestore
     useEffect(() => {
         const q = query(collection(db, "users"));
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -88,70 +73,70 @@ export default function AdminDashboard() {
         return () => unsubscribe();
     }, []);
 
-    // Xử lý khi chọn user
-    const handleUserSelect = (user) => {
-        setSelectedUser(user.id);
-    };
-
     return (
         <div className="admin-dashboard">
             <h1>Admin Dashboard</h1>
             
             <div className="dashboard-container">
+                {/* Cột danh sách user */}
                 <div className="users-list">
                     <h2>Danh sách người dùng</h2>
                     {users.map(user => (
                         <button
                             key={user.id}
                             className={`user-button ${selectedUser === user.id ? 'selected' : ''}`}
-                            onClick={() => handleUserSelect(user)}
+                            onClick={() => setSelectedUser(user.id)}
                         >
                             {user.email}
                         </button>
                     ))}
                 </div>
 
+                {/* Cột dữ liệu MQTT */}
                 <div className="data-display">
-                    {selectedUser && (
-                        <div className="mqtt-data">
-                            <h2>Dữ liệu từ ESP32</h2>
-                            <div className="data-table">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Heart Rate (BPM)</th>
-                                            <th>SpO2 (%)</th>
-                                            <th>Temperature (°C)</th>
-                                            <th>Status</th>
-                                            <th>Date & Time</th>
+                    <h2>Dữ liệu bệnh nhân (real-time)</h2>
+                    <div className="data-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Heart Rate (BPM)</th>
+                                    <th>SpO2 (%)</th>
+                                    <th>Status</th>
+                                    <th>Date & Time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {mqttData.length > 0 ? (
+                                    mqttData.map((data, index) => (
+                                        <tr key={index} className={`status-${data.status?.toLowerCase()}`}>
+                                            <td>
+                                                {typeof data.heart_rate === "number"
+                                                    ? data.heart_rate.toFixed(2)
+                                                    : "N/A"}
+                                            </td>
+                                            <td>
+                                                {typeof data.spo2 === "number"
+                                                    ? data.spo2.toFixed(2)
+                                                    : "N/A"}
+                                            </td>
+                                            <td>{data.status || "N/A"}</td>
+                                            <td>
+                                                {data.timestamp
+                                                    ? new Date(data.timestamp).toLocaleString()
+                                                    : "N/A"}
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        {mqttData[selectedUser] ? (
-                                            mqttData[selectedUser].map((data, index) => (
-                                                <tr key={index} className={`status-${data.status?.toLowerCase()}`}>
-                                                    <td>{data.heart_rate?.toFixed(2) || 'N/A'}</td>
-                                                    <td>{data.spo2?.toFixed(2) || 'N/A'}</td>
-                                                    <td>{data.temperature?.toFixed(2) || 'N/A'}</td>
-                                                    <td>{data.status || 'N/A'}</td>
-                                                    <td>{data.timestamp || 'N/A'}</td>
-                                                </tr>
-                                            ))
-                                        ) : (
-                                            <tr>
-                                                <td colSpan="5">Không có dữ liệu</td>
-                                            </tr>
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    )}
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan="4">Chưa có dữ liệu</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
     );
 }
-
-
-//hellooo//
