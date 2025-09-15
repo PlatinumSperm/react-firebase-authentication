@@ -1,0 +1,135 @@
+.home-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 40px;
+  padding: 40px;
+}
+
+.left-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.heart-card {
+  background: #141414;
+  border-radius: 16px;
+  padding: 30px;
+  text-align: center;
+}
+
+.heart-shape {
+  width: 150px;
+  height: 150px;
+  clip-path: path("M24 4C12 4 2 14 2 26c0 16 22 28 22 28s22-12 22-28c0-12-10-22-22-22z");
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-weight: bold;
+  transition: background 0.3s ease;
+}
+
+.bpm-value {
+  font-size: 32px;
+}
+
+.bpm-label {
+  font-size: 16px;
+}
+
+.info-box {
+  margin-top: 20px;
+  font-size: 18px;
+  text-align: center;
+}
+
+.right-panel {
+  flex: 2;
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.chart-toggle {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.chart-toggle button {
+  padding: 8px 16px;
+  border: 2px solid #d9d9d9;
+  border-radius: 8px;
+  background: #f5f5f5;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.chart-toggle button:hover {
+  background: #e6f7ff;
+  border-color: #1890ff;
+  color: #1890ff;
+}
+
+.chart-toggle button.active {
+  background: #1890ff;
+  border-color: #1890ff;
+  color: white;
+  box-shadow: 0 2px 6px rgba(24, 144, 255, 0.4);
+}
+
+.left-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1;
+}
+
+.info-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.info-content {
+  text-align: right;
+}
+
+.info-card .icon {
+  font-size: 32px;
+  margin-bottom: 10px;
+}
+
+.info-title {
+  font-size: 14px;
+  color: #555;
+  margin: 0;
+}
+
+.info-value {
+  font-size: 22px;
+  font-weight: bold;
+  margin: 5px 0 0 0;
+}
+
+.status-bar {
+  margin-top: 20px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #fafafa;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+

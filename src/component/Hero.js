@@ -10,7 +10,7 @@ export default function Hero() {
             </p>
             <div className="hero-buttons">
                 <button className="hero-btn-primary">
-                    Switch LED
+                    Khẩn cấp
                 </button>
             </div>
             <div>

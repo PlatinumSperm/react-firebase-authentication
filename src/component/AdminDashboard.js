@@ -40,10 +40,10 @@ export default function AdminDashboard() {
                 const data = JSON.parse(message.toString());
                 setMqttData((prev) => [
                     {
-                        heart_rate: data.heart_rate,
-                        spo2: data.spo2,
-                        status: data.status,
-                        timestamp: data.timestamp,
+                        BPM: data.BPM,
+                        SpO2: data.SpO2,
+                        TempC: data.TempC,
+                        timestamp: new Date().toISOString(),
                     },
                     ...prev.slice(0, 49), // giữ 50 bản ghi gần nhất
                 ]);
@@ -73,6 +73,23 @@ export default function AdminDashboard() {
         return () => unsubscribe();
     }, []);
 
+    // ✅ Hàm render giá trị với màu cảnh báo
+    const renderValue = (value, type) => {
+        if (typeof value !== "number" || value === -999) return "N/A";
+
+        let isWarning = false;
+
+        if (type === "BPM" && (value < 50 || value > 120)) isWarning = true;
+        if (type === "SpO2" && value < 90) isWarning = true;
+        if (type === "TempC" && (value < 35 || value > 38)) isWarning = true;
+
+        return (
+            <span style={{ color: isWarning ? "red" : "black", fontWeight: isWarning ? "bold" : "normal" }}>
+                {type === "TempC" ? value.toFixed(2) : value}
+            </span>
+        );
+    };
+
     return (
         <div className="admin-dashboard">
             <h1>Admin Dashboard</h1>
@@ -94,32 +111,24 @@ export default function AdminDashboard() {
 
                 {/* Cột dữ liệu MQTT */}
                 <div className="data-display">
-                    <h2>Dữ liệu bệnh nhân (real-time)</h2>
+                    <h2>Dữ liệu real-time</h2>
                     <div className="data-table">
                         <table>
                             <thead>
                                 <tr>
-                                    <th>Heart Rate (BPM)</th>
-                                    <th>SpO2 (%)</th>
-                                    <th>Status</th>
+                                    <th>BPM</th>
+                                    <th>SpO₂ (%)</th>
+                                    <th>Nhiệt độ (°C)</th>
                                     <th>Date & Time</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {mqttData.length > 0 ? (
                                     mqttData.map((data, index) => (
-                                        <tr key={index} className={`status-${data.status?.toLowerCase()}`}>
-                                            <td>
-                                                {typeof data.heart_rate === "number"
-                                                    ? data.heart_rate.toFixed(2)
-                                                    : "N/A"}
-                                            </td>
-                                            <td>
-                                                {typeof data.spo2 === "number"
-                                                    ? data.spo2.toFixed(2)
-                                                    : "N/A"}
-                                            </td>
-                                            <td>{data.status || "N/A"}</td>
+                                        <tr key={index}>
+                                            <td>{renderValue(data.BPM, "BPM")}</td>
+                                            <td>{renderValue(data.SpO2, "SpO2")}</td>
+                                            <td>{renderValue(data.TempC , "TempC")}</td>
                                             <td>
                                                 {data.timestamp
                                                     ? new Date(data.timestamp).toLocaleString()
