@@ -29,7 +29,8 @@ export default function Home() {
   const [chartData, setChartData] = useState([]);
   const [chartType, setChartType] = useState("BPM");
 
-  const lastValueRef = useRef({ bpm: 75, spo2: 97, ir: 50000, temp: 36.5 });
+  const lastValueRef = useRef({ bpm: 0, spo2: 0, ir: 0, temp: 0 });
+  const [status, setStatus] = useState({ text: "Không tìm thấy dữ liệu", type: "none" });
 
   // ✅ Check auth
   useEffect(() => {
@@ -88,6 +89,24 @@ export default function Home() {
     };
   }, []);
 
+// thêm useEffect để cập nhật trạng thái
+  useEffect(() => {
+  if (bpm === null || spo2 === null || temp === null) {
+    setStatus({ text: "Không tìm thấy dữ liệu", type: "none" });
+  } else {
+    const isNormal =
+      bpm >= 60 && bpm <= 100 &&
+      spo2 >= 90 &&
+      temp >= 25 && temp <= 27;
+
+    if (isNormal) {
+      setStatus({ text: "Trạng thái: ổn định", type: "normal" });
+    } else {
+      setStatus({ text: "Trạng thái: báo động", type: "alert" });
+    }
+  }
+}, [bpm, spo2, temp]);
+
   // ✅ Card update mỗi 1s (không phụ thuộc tốc độ MQTT)
   useEffect(() => {
     const interval = setInterval(() => {
@@ -123,12 +142,12 @@ export default function Home() {
   return (
     <>
       <Navbar />
-      <Hero />
-
+      <Hero status={status} />
       <div className="home-container">
         {/* LEFT */}
         <div className="left-panel">
-          <div className="info-card">
+           <h2 className="section-title">Chỉ số hiện tại</h2>
+          <div className="info-card heart">
             <div className="icon">❤️</div>
             <div className="info-content">
               <p className="info-title">Nhịp tim</p>
@@ -136,7 +155,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="info-card">
+          <div className="info-card spo2">
             <div className="icon">🫁</div>
             <div className="info-content">
               <p className="info-title">SpO₂</p>
@@ -144,7 +163,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="info-card">
+          <div className="info-card temp">
             <div className="icon">🌡️</div>
             <div className="info-content">
               <p className="info-title">Nhiệt độ</p>
@@ -183,7 +202,7 @@ export default function Home() {
               ? "Sơ đồ SpO₂"
               : "Sơ đồ tín hiệu PPG"}
           </h3>
-
+            
           <ResponsiveContainer width="100%" height={350}>
             <LineChart
               data={chartData}
