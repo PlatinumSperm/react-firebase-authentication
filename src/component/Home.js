@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -13,8 +13,10 @@ import {
   Tooltip,
   CartesianGrid,
   ResponsiveContainer,
+  Label,
 } from "recharts";
 import "./Home.css";
+import { motion } from "framer-motion";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -23,8 +25,11 @@ export default function Home() {
   const [bpm, setBpm] = useState(null);
   const [spo2, setSpo2] = useState(null);
   const [temp, setTemp] = useState(null);
+  const [ir, setIr] = useState(null);
   const [chartData, setChartData] = useState([]);
-  const [chartType, setChartType] = useState("BPM"); // ✅ mặc định là BPM
+  const [chartType, setChartType] = useState("BPM");
+
+  const lastValueRef = useRef({ bpm: 75, spo2: 97, ir: 50000, temp: 36.5 });
 
   // ✅ Check auth
   useEffect(() => {
@@ -37,7 +42,7 @@ export default function Home() {
     return () => unsubscribe();
   }, [navigate]);
 
-  // ✅ MQTT connect
+  // ✅ MQTT connect (update chart theo gói dữ liệu)
   useEffect(() => {
     const client = mqtt.connect("wss://broker.emqx.io:8084/mqtt");
 
@@ -49,17 +54,27 @@ export default function Home() {
     client.on("message", (topic, message) => {
       try {
         const data = JSON.parse(message.toString());
-        setBpm(data.BPM !== -999 ? data.BPM : null);
-        setSpo2(data.SpO2 !== -999 ? data.SpO2 : null);
-        setTemp(data.TempC !== -999 ? data.TempC : null);
+        const newBpm = data.BPM !== -999 ? data.BPM : lastValueRef.current.bpm;
+        const newSpo2 = data.SpO2 !== -999 ? data.SpO2 : lastValueRef.current.spo2;
+        const newTemp = data.TempC !== -999 ? data.TempC : lastValueRef.current.temp;
+        const newIr = data.IR !== -999 ? data.IR : lastValueRef.current.ir;
 
-        // update chart (giữ 30 điểm gần nhất)
+        // lưu giá trị mới vào ref
+        lastValueRef.current = { bpm: newBpm, spo2: newSpo2, ir: newIr, temp: newTemp };
+
+        // ✅ update chart ngay (theo đúng tốc độ MQTT 0.1s)
+        const now = new Date().toLocaleTimeString("vi-VN", {
+          hour12: false,
+          timeStyle: "medium",
+        });
+
         setChartData((prev) => [
-          ...prev.slice(-29),
+          ...prev.slice(-49),
           {
-            time: new Date().toLocaleTimeString(),
-            bpm: data.BPM !== -999 ? data.BPM : null,
-            spo2: data.SpO2 !== -999 ? data.SpO2 : null,
+            time: now,
+            bpm: newBpm,
+            spo2: newSpo2,
+            ir: newIr,
           },
         ]);
       } catch (err) {
@@ -67,7 +82,21 @@ export default function Home() {
       }
     });
 
-    return () => client.end();
+    return () => {
+      client.unsubscribe("thongtinbenhnhan");
+      client.end();
+    };
+  }, []);
+
+  // ✅ Card update mỗi 1s (không phụ thuộc tốc độ MQTT)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setBpm(lastValueRef.current.bpm);
+      setSpo2(lastValueRef.current.spo2);
+      setTemp(lastValueRef.current.temp);
+      setIr(lastValueRef.current.ir);
+    }, 1000); // update card mỗi 1 giây
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
@@ -78,24 +107,18 @@ export default function Home() {
     );
   }
 
-  // ✅ Xác định màu trái tim
-  const getHeartColor = () => {
-    if (bpm == null) return "#d9d9d9";
-    if (bpm < 50 || bpm > 120) return "#ffa940";
-    return "#ff4d4f";
-  };
+  // ✅ Custom Line component animate theo path d
+  const MotionLine = ({ path, stroke }) => (
+    <motion.path
+      d={path}
+      stroke={stroke}
+      strokeWidth="2"
+      fill="none"
+      animate={{ d: path }}
+      transition={{ duration: 0.1, ease: "linear" }} // 0.1s đúng với tần suất dữ liệu
+    />
+  );
 
-  // ✅ Xác định màu SpO2
-  const getSpo2Color = () => {
-    if (spo2 == null) return "#000";
-    return spo2 < 90 ? "#ff4d4f" : "#52c41a";
-  };
-
-  // ✅ Xác định màu TempC
-  const getTempColor = () => {
-    if (temp == null) return "#000";
-    return temp < 22 || temp > 32 ? "#ff4d4f" : "#1890ff";
-  };
 
   return (
     <>
@@ -105,43 +128,33 @@ export default function Home() {
       <div className="home-container">
         {/* LEFT */}
         <div className="left-panel">
-        {/* Card Nhịp tim */}
-        <div className="info-card">
-          <div className="icon">❤️</div>
-          <div className="info-content">
-            <p className="info-title">Nhịp tim</p>
-            <p className="info-value" style={{ color: getHeartColor() }}>
-              {bpm ?? "--"} BPM
-            </p>
+          <div className="info-card">
+            <div className="icon">❤️</div>
+            <div className="info-content">
+              <p className="info-title">Nhịp tim</p>
+              <p className="info-value">{bpm ?? "--"} BPM</p>
+            </div>
+          </div>
+
+          <div className="info-card">
+            <div className="icon">🫁</div>
+            <div className="info-content">
+              <p className="info-title">SpO₂</p>
+              <p className="info-value">{spo2 ?? "--"} %</p>
+            </div>
+          </div>
+
+          <div className="info-card">
+            <div className="icon">🌡️</div>
+            <div className="info-content">
+              <p className="info-title">Nhiệt độ</p>
+              <p className="info-value">{temp ?? "--"} °C</p>
+            </div>
           </div>
         </div>
-
-        {/* Card SpO2 */}
-        <div className="info-card">
-          <div className="icon">🫁</div>
-          <div className="info-content">
-            <p className="info-title">SpO₂</p>
-            <p className="info-value" style={{ color: getSpo2Color() }}>
-              {spo2 ?? "--"} %
-            </p>
-          </div>
-        </div>
-
-  {/* Card Nhiệt độ */}
-  <div className="info-card">
-    <div className="icon">🌡️</div>
-    <div className="info-content">
-      <p className="info-title">Nhiệt độ</p>
-      <p className="info-value" style={{ color: getTempColor() }}>
-        {temp ?? "--"} °C
-      </p>
-    </div>
-  </div>
-</div>
 
         {/* RIGHT */}
         <div className="right-panel">
-          {/* ✅ Nút chọn loại biểu đồ */}
           <div className="chart-toggle">
             <button
               className={chartType === "BPM" ? "active" : ""}
@@ -155,32 +168,116 @@ export default function Home() {
             >
               Sơ đồ SpO₂
             </button>
+            <button
+              className={chartType === "IR" ? "active" : ""}
+              onClick={() => setChartType("IR")}
+            >
+              Sơ đồ tín hiệu PPG
+            </button>
           </div>
 
-          <h3>{chartType === "BPM" ? "Sơ đồ nhịp tim" : "Sơ đồ SpO₂"}</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" hide />
-              <YAxis />
-              <Tooltip />
-              {chartType === "BPM" ? (
-                <Line
-                  type="monotone"
-                  dataKey="bpm"
-                  stroke="#ff4d4f"
-                  strokeWidth={2}
-                  dot={false}
+          <h3>
+            {chartType === "BPM"
+              ? "Sơ đồ nhịp tim"
+              : chartType === "SpO2"
+              ? "Sơ đồ SpO₂"
+              : "Sơ đồ tín hiệu PPG"}
+          </h3>
+
+          <ResponsiveContainer width="100%" height={350}>
+            <LineChart
+              data={chartData}
+              margin={{ top: 20, right: 20, left: 10, bottom: 20 }}
+              style={{ backgroundColor: "#fff" }} // nền trắng
+            >
+              <motion.g
+                key={chartData.length}
+                initial={{ x: 0 }}
+                animate={{ x: -15 }}
+                transition={{ duration: 0.12, ease: "linear" }}
+              >
+                <CartesianGrid stroke="#e0e0e0" strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="time"
+                  tick={{ fill: "#333", fontSize: 12 }}
+                  axisLine={{ stroke: "#333" }}
+                >
+                  <Label value="Thời gian" offset={-5} position="insideBottom" fill="#333" />
+                </XAxis>
+
+                {chartType === "BPM" && (
+                  <YAxis
+                    domain={[40, 140]}
+                    tick={{ fill: "#333", fontSize: 12 }}
+                    axisLine={{ stroke: "#333" }}
+                  >
+                    <Label value="BPM" angle={-90} position="insideLeft" fill="#333" />
+                  </YAxis>
+                )}
+                {chartType === "SpO2" && (
+                  <YAxis
+                    domain={[80, 100]}
+                    tick={{ fill: "#333", fontSize: 12 }}
+                    axisLine={{ stroke: "#333" }}
+                  >
+                    <Label value="%" angle={-90} position="insideLeft" fill="#333" />
+                  </YAxis>
+                )}
+                {chartType === "IR" && (
+                  <YAxis tick={{ fill: "#333", fontSize: 12 }} axisLine={{ stroke: "#333" }}>
+                    <Label value="PPG" angle={-90} position="insideLeft" fill="#333" />
+                  </YAxis>
+                )}
+
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#fff", border: "1px solid #ccc" }}
+                  labelStyle={{ color: "#333" }}
+                  itemStyle={{ color: "#333" }}
                 />
-              ) : (
-                <Line
-                  type="monotone"
-                  dataKey="spo2"
-                  stroke="#52c41a"
-                  strokeWidth={2}
-                  dot={false}
-                />
-              )}
+
+                {chartType === "BPM" && (
+                  <Line
+                    type="monotone"
+                    dataKey="bpm"
+                    stroke="#00b300"
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                    content={({ points }) => {
+                      const path = `M${points.map((p) => `${p.x},${p.y}`).join("L")}`;
+                      return <MotionLine path={path} stroke="#00b300" />;
+                    }}
+                  />
+                )}
+                {chartType === "SpO2" && (
+                  <Line
+                    type="monotone"
+                    dataKey="spo2"
+                    stroke="#00bfff"
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                    content={({ points }) => {
+                      const path = `M${points.map((p) => `${p.x},${p.y}`).join("L")}`;
+                      return <MotionLine path={path} stroke="#00bfff" />;
+                    }}
+                  />
+                )}
+                {chartType === "IR" && (
+                  <Line
+                    type="monotone"
+                    dataKey="ir"
+                    stroke="#ff9900"
+                    strokeWidth={2}
+                    dot={false}
+                    isAnimationActive={false}
+                    content={({ points }) => {
+                      const path = `M${points.map((p) => `${p.x},${p.y}`).join("L")}`;
+                      return <MotionLine path={path} stroke="#ff9900" />;
+                    }}
+                  />
+                )}
+              </motion.g>
             </LineChart>
           </ResponsiveContainer>
         </div>

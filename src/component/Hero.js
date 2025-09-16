@@ -3,7 +3,7 @@ import './Hero.css';
 export default function Hero() {
     return (
         <section className="hero">
-            <h1>Chào mừng đến với sức khỏe của bạn</h1>
+            <h1>Chào mừng đến với app quản lý sức khỏe của bạn</h1>
             <p>
                 Trang quản lý sức khỏe của chúng tôi giúp bạn theo dõi nhịp tim và dự đoán tình trạng sức khỏe
                 một cách chính xác.

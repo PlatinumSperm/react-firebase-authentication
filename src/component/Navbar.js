@@ -28,7 +28,7 @@ export default function Navbar() {
       <ul className="navbar-menu">
         <li><Link to="/">Nhịp tim</Link></li>
         <li><Link to="/health">Lịch sử sức khỏe</Link></li>
-        <li><Link to="/news">Thời tiết</Link></li>
+        <li><Link to="/news">Thiết lập thiết bị</Link></li>
       </ul>
       {user ? (
         <div className="user-controls">
