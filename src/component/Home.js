@@ -32,6 +32,9 @@ export default function Home() {
   const lastValueRef = useRef({ bpm: 0, spo2: 0, ir: 0, temp: 0 });
   const [status, setStatus] = useState({ text: "Không tìm thấy dữ liệu", type: "none" });
 
+  // ⏱ Lưu thời gian nhận dữ liệu cuối cùng
+  const lastMessageTime = useRef(Date.now());
+
   // ✅ Check auth
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -43,7 +46,7 @@ export default function Home() {
     return () => unsubscribe();
   }, [navigate]);
 
-  // ✅ MQTT connect (update chart theo gói dữ liệu)
+  // ✅ MQTT connect
   useEffect(() => {
     const client = mqtt.connect("wss://broker.emqx.io:8084/mqtt");
 
@@ -62,8 +65,9 @@ export default function Home() {
 
         // lưu giá trị mới vào ref
         lastValueRef.current = { bpm: newBpm, spo2: newSpo2, ir: newIr, temp: newTemp };
+        lastMessageTime.current = Date.now(); // ✅ cập nhật thời gian nhận dữ liệu
 
-        // ✅ update chart ngay (theo đúng tốc độ MQTT 0.1s)
+        // ✅ update chart
         const now = new Date().toLocaleTimeString("vi-VN", {
           hour12: false,
           timeStyle: "medium",
@@ -71,12 +75,7 @@ export default function Home() {
 
         setChartData((prev) => [
           ...prev.slice(-49),
-          {
-            time: now,
-            bpm: newBpm,
-            spo2: newSpo2,
-            ir: newIr,
-          },
+          { time: now, bpm: newBpm, spo2: newSpo2, ir: newIr },
         ]);
       } catch (err) {
         console.error("Error parsing MQTT:", err);
@@ -89,32 +88,61 @@ export default function Home() {
     };
   }, []);
 
-// thêm useEffect để cập nhật trạng thái
+  // ✅ Cập nhật trạng thái
   useEffect(() => {
-  if (bpm === null || spo2 === null || temp === null) {
-    setStatus({ text: "Không tìm thấy dữ liệu", type: "none" });
-  } else {
-    const isNormal =
-      bpm >= 60 && bpm <= 100 &&
-      spo2 >= 90 &&
-      temp >= 25 && temp <= 27;
-
-    if (isNormal) {
-      setStatus({ text: "Trạng thái: ổn định", type: "normal" });
+    if (bpm === null || spo2 === null || temp === null) {
+      setStatus({ text: "Không tìm thấy dữ liệu", type: "none" });
     } else {
-      setStatus({ text: "Trạng thái: báo động", type: "alert" });
-    }
-  }
-}, [bpm, spo2, temp]);
+      const isNormal =
+        bpm >= 60 && bpm <= 100 &&
+        spo2 >= 90 &&
+        temp >= 25 && temp <= 27;
 
-  // ✅ Card update mỗi 1s (không phụ thuộc tốc độ MQTT)
+      if (isNormal) {
+        setStatus({ text: "Trạng thái: ổn định", type: "normal" });
+      } else {
+        setStatus({ text: "Trạng thái: báo động", type: "alert" });
+      }
+    }
+  }, [bpm, spo2, temp]);
+
+  // ✅ Card update mỗi 1s
   useEffect(() => {
     const interval = setInterval(() => {
+      const now = Date.now();
+
+      // nếu không có dữ liệu mới trong 2s → giảm dần về 0
+      if (now - lastMessageTime.current > 2000) {
+        lastValueRef.current = {
+          bpm: Math.max(0, lastValueRef.current.bpm - 2),
+          spo2: Math.max(0, lastValueRef.current.spo2 - 1),
+          temp: Math.max(0, lastValueRef.current.temp - 0.1),
+          ir: Math.max(0, lastValueRef.current.ir - 500),
+        };
+      }
+
       setBpm(lastValueRef.current.bpm);
       setSpo2(lastValueRef.current.spo2);
-      setTemp(lastValueRef.current.temp);
+      setTemp(Number(lastValueRef.current.temp.toFixed(1)));
       setIr(lastValueRef.current.ir);
-    }, 1000); // update card mỗi 1 giây
+
+      // cập nhật chart khi giảm giá trị
+      const nowLabel = new Date().toLocaleTimeString("vi-VN", {
+        hour12: false,
+        timeStyle: "medium",
+      });
+
+      setChartData((prev) => [
+        ...prev.slice(-49),
+        {
+          time: nowLabel,
+          bpm: lastValueRef.current.bpm,
+          spo2: lastValueRef.current.spo2,
+          ir: lastValueRef.current.ir,
+        },
+      ]);
+    }, 1000);
+
     return () => clearInterval(interval);
   }, []);
 
@@ -126,7 +154,7 @@ export default function Home() {
     );
   }
 
-  // ✅ Custom Line component animate theo path d
+  // ✅ Custom Line animate
   const MotionLine = ({ path, stroke }) => (
     <motion.path
       d={path}
@@ -134,10 +162,9 @@ export default function Home() {
       strokeWidth="2"
       fill="none"
       animate={{ d: path }}
-      transition={{ duration: 0.1, ease: "linear" }} // 0.1s đúng với tần suất dữ liệu
+      transition={{ duration: 0.1, ease: "linear" }}
     />
   );
-
 
   return (
     <>
@@ -146,7 +173,7 @@ export default function Home() {
       <div className="home-container">
         {/* LEFT */}
         <div className="left-panel">
-           <h2 className="section-title">Chỉ số hiện tại</h2>
+          <h2 className="section-title">Chỉ số hiện tại</h2>
           <div className="info-card heart">
             <div className="icon">❤️</div>
             <div className="info-content">
@@ -154,7 +181,6 @@ export default function Home() {
               <p className="info-value">{bpm ?? "--"} BPM</p>
             </div>
           </div>
-
           <div className="info-card spo2">
             <div className="icon">🫁</div>
             <div className="info-content">
@@ -162,7 +188,6 @@ export default function Home() {
               <p className="info-value">{spo2 ?? "--"} %</p>
             </div>
           </div>
-
           <div className="info-card temp">
             <div className="icon">🌡️</div>
             <div className="info-content">
@@ -202,12 +227,12 @@ export default function Home() {
               ? "Sơ đồ SpO₂"
               : "Sơ đồ tín hiệu PPG"}
           </h3>
-            
+
           <ResponsiveContainer width="100%" height={350}>
             <LineChart
               data={chartData}
               margin={{ top: 20, right: 20, left: 10, bottom: 20 }}
-              style={{ backgroundColor: "#fff" }} // nền trắng
+              style={{ backgroundColor: "#fff" }}
             >
               <motion.g
                 key={chartData.length}
@@ -225,20 +250,12 @@ export default function Home() {
                 </XAxis>
 
                 {chartType === "BPM" && (
-                  <YAxis
-                    domain={[40, 140]}
-                    tick={{ fill: "#333", fontSize: 12 }}
-                    axisLine={{ stroke: "#333" }}
-                  >
+                  <YAxis domain={[0, 140]} tick={{ fill: "#333", fontSize: 12 }} axisLine={{ stroke: "#333" }}>
                     <Label value="BPM" angle={-90} position="insideLeft" fill="#333" />
                   </YAxis>
                 )}
                 {chartType === "SpO2" && (
-                  <YAxis
-                    domain={[80, 100]}
-                    tick={{ fill: "#333", fontSize: 12 }}
-                    axisLine={{ stroke: "#333" }}
-                  >
+                  <YAxis domain={[0, 100]} tick={{ fill: "#333", fontSize: 12 }} axisLine={{ stroke: "#333" }}>
                     <Label value="%" angle={-90} position="insideLeft" fill="#333" />
                   </YAxis>
                 )}
