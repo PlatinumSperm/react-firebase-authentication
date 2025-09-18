@@ -3,7 +3,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px 32px;
-  background-color: #fff;
+  background-color: #ffbebe;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
   position: sticky;
   top: 0;
@@ -15,6 +15,12 @@
   font-weight: bold;
   color: #333;
 }
+
+.logo-img {
+  height: 40px;   /* chỉnh kích thước theo ý */
+  width: auto;
+}
+
 
 .navbar-menu {
   display: flex;

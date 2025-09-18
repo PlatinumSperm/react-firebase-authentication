@@ -24,11 +24,13 @@ export default function Navbar() {
 
   return (
     <nav className="navbar">
-      <Link to="/" className="navbar-logo">Logo</Link>
+      <Link to="/" className="navbar-logo">
+  <img src="/logobk.jpg" alt="Logo" className="logo-img" />
+</Link>
       <ul className="navbar-menu">
         <li><Link to="/">Nhịp tim</Link></li>
-        <li><Link to="/health">Lịch sử sức khỏe</Link></li>
-        <li><Link to="/news">Thiết lập thiết bị</Link></li>
+        <li><Link to="/health-history">Lịch sử sức khỏe</Link></li>
+        <li><Link to="/device-settings">Thiết lập thiết bị</Link></li>
       </ul>
       {user ? (
         <div className="user-controls">

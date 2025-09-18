@@ -7,7 +7,7 @@
 .hero h1 {
   font-size: 40px;
   font-weight: bold;
-  color: #222;
+  color: #1d3557;
   margin-bottom: 16px;
 }
 
@@ -15,8 +15,12 @@
   font-size: 16px;
   max-width: 700px;
   margin: 0 auto 24px;
-  color: #555;
+  color: #080606;
   line-height: 1.6;
+  background: rgba(255,255,255,0.7); /* nền trắng mờ */
+  padding: 10px;
+  border-radius: 12px;
+  display: inline-block;
 }
 
 .hero-btn-secondary {
@@ -65,4 +69,17 @@
 .status-card.alert {
   background: #f8d7da;
   color: #721c24;
+}
+
+.hero {
+  background-image: url('D:/Đại học Bách Khoa/ĐỒ ÁN 3/PBL3_1/react-firebase-authentication/public/nen3.jpg');
+  background-size: cover;      /* phủ hết vùng hero */
+  background-position: center;
+  background-repeat: no-repeat;
+  min-height: 350px;           /* điều chỉnh chiều cao */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 12px;         /* nếu muốn bo góc */
+  padding: 20px;
 }
