@@ -97,7 +97,7 @@ export default function Home() {
     const isNormal =
       bpm >= 60 && bpm <= 100 &&
       spo2 >= 90 &&
-      temp >= 25 && temp <= 27;
+      temp >= 20 && temp <= 34;
 
     if (isNormal) {
       setStatus({ text: "Trạng thái: ổn định", type: "normal" });
