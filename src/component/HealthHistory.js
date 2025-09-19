@@ -68,7 +68,7 @@ export default function HealthHistory() {
               </tr>
             </thead>
             <tbody>
-              {filteredData.map((item, index) => (
+              {filteredData.slice().reverse().map((item, index) => (
                 <tr key={index} className={item.status}>
                   <td>{item.timestamp}</td>
                   <td className={item.alerts?.bpm ? 'alert-value' : ''}>
@@ -83,6 +83,7 @@ export default function HealthHistory() {
                   <td>{item.status === 'normal' ? 'Bình thường' : 'Báo động'}</td>
                 </tr>
               ))}
+
             </tbody>
           </table>
         </div>
