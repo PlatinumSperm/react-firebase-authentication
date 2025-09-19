@@ -72,7 +72,7 @@
 }
 
 .hero {
-  background-image: url('D:/Đại học Bách Khoa/ĐỒ ÁN 3/PBL3_1/react-firebase-authentication/public/nen3.jpg');
+  background-image: url('/public/nen3.jpg');
   background-size: cover;      /* phủ hết vùng hero */
   background-position: center;
   background-repeat: no-repeat;
