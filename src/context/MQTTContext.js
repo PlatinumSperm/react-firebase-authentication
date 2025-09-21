@@ -41,7 +41,7 @@ export function MQTTProvider({ children }) {
         const isAlert = 
           newData.bpm < 60 || newData.bpm > 100 ||
           newData.spo2 < 90 ||
-          newData.temp < 25 || newData.temp > 27;
+          newData.temp < 25 || newData.temp > 30;
 
         const dataWithStatus = {
           ...newData,
@@ -49,7 +49,7 @@ export function MQTTProvider({ children }) {
           alerts: {
             bpm: newData.bpm < 60 || newData.bpm > 100,
             spo2: newData.spo2 < 90,
-            temp: newData.temp < 25 || newData.temp > 27
+            temp: newData.temp < 25 || newData.temp > 30
           }
         };
 

@@ -11,6 +11,7 @@ export default function HealthHistory() {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('all'); // 'all' or 'alerts'
 
+<<<<<<< HEAD
   const [healthData, setHealthData] = useState([]);
   const [currentData, setCurrentData] = useState({
     bpm: null,
@@ -101,6 +102,11 @@ export default function HealthHistory() {
   }, []);
 
   // Auth
+=======
+  // 👉 State lưu dữ liệu hiển thị
+  const [displayData, setDisplayData] = useState([]);
+
+>>>>>>> f13fc59fb125aca59adf3279fabb1ae5b69a6cda
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setLoading(false);
@@ -111,6 +117,7 @@ export default function HealthHistory() {
     return () => unsubscribe();
   }, [navigate]);
 
+<<<<<<< HEAD
   // Filtered data
   const filteredData =
     viewMode === 'alerts'
@@ -171,6 +178,36 @@ export default function HealthHistory() {
     setFilterTimeTo('');
     setFilterMetrics({ bpm: false, spo2: false, temp: false });
   };
+=======
+  // 👉 Điều khiển tốc độ cập nhật dữ liệu
+  useEffect(() => {
+  if (healthData.length === 0) return;
+
+  const latest = healthData[healthData.length - 1];
+
+  if (displayData.length === 0) {
+    // 🚀 Lần đầu load: hiển thị ngay
+    setDisplayData([...healthData]);
+    return;
+  }
+
+  if (latest.status === "alert") {
+    setDisplayData([...healthData]);
+  } else {
+    const timer = setTimeout(() => {
+      setDisplayData([...healthData]);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }
+}, [healthData]);
+
+
+  const filteredData =
+    viewMode === "alerts"
+      ? displayData.filter((item) => item.status === "alert")
+      : displayData;
+>>>>>>> f13fc59fb125aca59adf3279fabb1ae5b69a6cda
 
   if (loading) {
     return (
@@ -186,6 +223,7 @@ export default function HealthHistory() {
       <div className="history-container">
         <h1>Lịch sử sức khỏe</h1>
 
+<<<<<<< HEAD
         <div className="view-toggle" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <button
@@ -278,6 +316,54 @@ export default function HealthHistory() {
               <option value={50}>50 dòng / trang</option>
             </select>
           </div>
+=======
+        <div className="view-toggle">
+          <button
+            className={viewMode === "all" ? "active" : ""}
+            onClick={() => setViewMode("all")}
+          >
+            Hiển thị lịch sử
+          </button>
+          <button
+            className={viewMode === "alerts" ? "active" : ""}
+            onClick={() => setViewMode("alerts")}
+          >
+            Lịch sử báo động
+          </button>
+        </div>
+
+        <div className="history-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Thời gian</th>
+                <th>Nhịp tim (BPM)</th>
+                <th>SpO₂ (%)</th>
+                <th>Nhiệt độ (°C)</th>
+                <th>Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredData.slice().reverse().map((item, index) => (
+                <tr key={index} className={item.status}>
+                  <td>{item.timestamp}</td>
+                  <td className={item.alerts?.bpm ? "alert-value" : ""}>
+                    {item.bpm}
+                  </td>
+                  <td className={item.alerts?.spo2 ? "alert-value" : ""}>
+                    {item.spo2}
+                  </td>
+                  <td className={item.alerts?.temp ? "alert-value" : ""}>
+                    {item.temp}
+                  </td>
+                  <td>
+                    {item.status === "normal" ? "Bình thường" : "Báo động"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+>>>>>>> f13fc59fb125aca59adf3279fabb1ae5b69a6cda
         </div>
       </div>
     </>
