@@ -45,6 +45,18 @@ export default function Home() {
 
   // ✅ MQTT connect (update chart theo gói dữ liệu)
   useEffect(() => {
+    // Khôi phục dữ liệu từ localStorage nếu có
+    const savedData = localStorage.getItem('healthData');
+    if (savedData) {
+      const parsedData = JSON.parse(savedData);
+      setChartData(parsedData.chartData || []);
+      lastValueRef.current = parsedData.lastValue || { bpm: 0, spo2: 0, ir: 0, temp: 0 };
+      setBpm(parsedData.lastValue?.bpm || null);
+      setSpo2(parsedData.lastValue?.spo2 || null);
+      setTemp(parsedData.lastValue?.temp || null);
+      setIr(parsedData.lastValue?.ir || null);
+    }
+
     const client = mqtt.connect("wss://broker.emqx.io:8084/mqtt");
 
     client.on("connect", () => {
@@ -52,7 +64,7 @@ export default function Home() {
       client.subscribe("thongtinbenhnhan");
     });
 
-    client.on("message", (topic, message) => {
+    const handleMessage = (topic, message) => {
       try {
         const data = JSON.parse(message.toString());
         const newBpm = data.BPM !== -999 ? data.BPM : lastValueRef.current.bpm;
@@ -61,7 +73,8 @@ export default function Home() {
         const newIr = data.IR !== -999 ? data.IR : lastValueRef.current.ir;
 
         // lưu giá trị mới vào ref
-        lastValueRef.current = { bpm: newBpm, spo2: newSpo2, ir: newIr, temp: newTemp };
+        const newValues = { bpm: newBpm, spo2: newSpo2, ir: newIr, temp: newTemp };
+        lastValueRef.current = newValues;
 
         // ✅ update chart ngay (theo đúng tốc độ MQTT 0.1s)
         const now = new Date().toLocaleTimeString("vi-VN", {
@@ -69,25 +82,45 @@ export default function Home() {
           timeStyle: "medium",
         });
 
-        setChartData((prev) => [
-          ...prev.slice(-49),
-          {
-            time: now,
-            bpm: newBpm,
-            spo2: newSpo2,
-            ir: newIr,
-          },
-        ]);
+        setChartData(prev => {
+          const newChartData = [
+            ...prev.slice(-49),
+            {
+              time: now,
+              bpm: newBpm,
+              spo2: newSpo2,
+              ir: newIr,
+            },
+          ];
+
+          // Lưu vào localStorage
+          const dataToStore = {
+            chartData: newChartData,
+            lastValue: newValues,
+            timestamp: now
+          };
+          localStorage.setItem('healthData', JSON.stringify(dataToStore));
+
+          return newChartData;
+        });
+
+        // Cập nhật các giá trị hiện tại
+        setBpm(newBpm);
+        setSpo2(newSpo2);
+        setTemp(newTemp);
+        setIr(newIr);
       } catch (err) {
         console.error("Error parsing MQTT:", err);
       }
-    });
+    };
+
+    client.on("message", handleMessage);
 
     return () => {
       client.unsubscribe("thongtinbenhnhan");
       client.end();
     };
-  }, []);
+  }, []); // Chỉ chạy một lần khi component mount
 
 // thêm useEffect để cập nhật trạng thái
   useEffect(() => {

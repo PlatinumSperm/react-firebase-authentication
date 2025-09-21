@@ -32,8 +32,14 @@ export default function HealthHistory() {
     temp: false
   });
 
-  // MQTT
+  // MQTT và Data Management
   useEffect(() => {
+    // Khôi phục dữ liệu từ localStorage nếu có
+    const savedHealthData = localStorage.getItem('historyData');
+    if (savedHealthData) {
+      setHealthData(JSON.parse(savedHealthData));
+    }
+
     const client = mqtt.connect("wss://broker.emqx.io:8084/mqtt");
 
     client.on("connect", () => {
@@ -41,20 +47,21 @@ export default function HealthHistory() {
       client.subscribe("thongtinbenhnhan");
     });
 
-    client.on("message", (topic, message) => {
+    const handleMessage = (topic, message) => {
       try {
         const data = JSON.parse(message.toString());
+        const prevData = lastDataRef.current || currentData;
         const newData = {
-          bpm: data.BPM !== -999 ? data.BPM : currentData.bpm,
-          spo2: data.SpO2 !== -999 ? data.SpO2 : currentData.spo2,
-          temp: data.TempC !== -999 ? data.TempC : currentData.temp,
-          ir: data.IR !== -999 ? data.IR : currentData.ir
+          bpm: data.BPM !== -999 ? data.BPM : prevData.bpm,
+          spo2: data.SpO2 !== -999 ? data.SpO2 : prevData.spo2,
+          temp: data.TempC !== -999 ? data.TempC : prevData.temp,
+          ir: data.IR !== -999 ? data.IR : prevData.ir
         };
 
         const isAlert =
           newData.bpm < 60 || newData.bpm > 100 ||
           newData.spo2 < 90 ||
-          newData.temp < 25 || newData.temp > 28;
+          newData.temp < 25 || newData.temp > 29;
 
         const timestamp = new Date().toLocaleString('vi-VN', {
           hour12: false,
@@ -73,32 +80,31 @@ export default function HealthHistory() {
           alerts: {
             bpm: newData.bpm < 60 || newData.bpm > 100,
             spo2: newData.spo2 < 90,
-            temp: newData.temp < 25 || newData.temp > 28
+            temp: newData.temp < 25 || newData.temp > 29
           }
         };
 
         lastDataRef.current = dataWithStatus;
+        setCurrentData(dataWithStatus);
+        
+        setHealthData(prev => {
+          const newHealthData = [...prev, dataWithStatus];
+          // Lưu vào localStorage sau khi cập nhật
+          localStorage.setItem('historyData', JSON.stringify(newHealthData.slice(-1000))); // Giới hạn lưu trữ 1000 bản ghi
+          return newHealthData;
+        });
       } catch (err) {
         console.error("Error parsing MQTT:", err);
       }
-    });
+    };
+
+    client.on("message", handleMessage);
 
     return () => {
       client.unsubscribe("thongtinbenhnhan");
       client.end();
     };
-  }, [currentData]);
-
-  // Interval update
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (lastDataRef.current) {
-        setCurrentData(lastDataRef.current);
-        setHealthData(prev => [...prev, lastDataRef.current]);
-      }
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
+  }, []); // Chỉ chạy một lần khi component mount
 
   // Auth
   useEffect(() => {
