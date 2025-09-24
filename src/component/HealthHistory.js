@@ -10,6 +10,7 @@ export default function HealthHistory() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('all'); // 'all' or 'alerts'
+  const [uid, setUid] = useState(null);
 
   const [healthData, setHealthData] = useState([]);
   const [currentData, setCurrentData] = useState({
@@ -20,6 +21,7 @@ export default function HealthHistory() {
   });
 
   const lastDataRef = useRef(null);
+  const mqttClientRef = useRef(null);
 
   // ✅ Filter state
   const [filterOpen, setFilterOpen] = useState(false);
@@ -32,19 +34,37 @@ export default function HealthHistory() {
     temp: false
   });
 
+  // Auth
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setLoading(false);
+      if (user) {
+        setUid(user.uid); // ✅ lấy uid để tạo topic riêng
+      } else {
+        navigate('/signin');
+      }
+    });
+    return () => unsubscribe();
+  }, [navigate]);
+
   // MQTT và Data Management
   useEffect(() => {
+    if (!uid) return;
+
     // Khôi phục dữ liệu từ localStorage nếu có
-    const savedHealthData = localStorage.getItem('historyData');
+    const savedHealthData = localStorage.getItem(`historyData_${uid}`);
     if (savedHealthData) {
       setHealthData(JSON.parse(savedHealthData));
     }
 
     const client = mqtt.connect("wss://broker.emqx.io:8084/mqtt");
+    mqttClientRef.current = client;
+
+    const topic = `thongtinbenhnhan/${uid}`;
 
     client.on("connect", () => {
       console.log("Connected to MQTT");
-      client.subscribe("thongtinbenhnhan");
+      client.subscribe(topic);
     });
 
     const handleMessage = (topic, message) => {
@@ -86,11 +106,10 @@ export default function HealthHistory() {
 
         lastDataRef.current = dataWithStatus;
         setCurrentData(dataWithStatus);
-        
+
         setHealthData(prev => {
           const newHealthData = [...prev, dataWithStatus];
-          // Lưu vào localStorage sau khi cập nhật
-          localStorage.setItem('historyData', JSON.stringify(newHealthData.slice(-1000))); // Giới hạn lưu trữ 1000 bản ghi
+          localStorage.setItem(`historyData_${uid}`, JSON.stringify(newHealthData.slice(-1000)));
           return newHealthData;
         });
       } catch (err) {
@@ -101,21 +120,10 @@ export default function HealthHistory() {
     client.on("message", handleMessage);
 
     return () => {
-      client.unsubscribe("thongtinbenhnhan");
+      client.unsubscribe(topic);
       client.end();
     };
-  }, []); // Chỉ chạy một lần khi component mount
-
-  // Auth
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setLoading(false);
-      if (!user) {
-        navigate('/signin');
-      }
-    });
-    return () => unsubscribe();
-  }, [navigate]);
+  }, [uid]); // ✅ chạy lại khi uid thay đổi
 
   // Filtered data
   const filteredData =
@@ -128,17 +136,14 @@ export default function HealthHistory() {
     return data.filter(item => {
       if (item.status !== 'alert') return false;
 
-      // Date filter
       if (filterDate && !item.timestamp.startsWith(filterDate)) return false;
 
-      // Time filter
       if (filterTimeFrom || filterTimeTo) {
-        const timePart = item.timestamp.split(', ')[1]; // "HH:MM:SS"
+        const timePart = item.timestamp.split(', ')[1];
         if (filterTimeFrom && timePart < filterTimeFrom) return false;
         if (filterTimeTo && timePart > filterTimeTo) return false;
       }
 
-      // Metrics filter
       const selectedMetrics = Object.keys(filterMetrics).filter(k => filterMetrics[k]);
       if (selectedMetrics.length > 0) {
         const matched = selectedMetrics.some(metric => item.alerts[metric]);
@@ -208,7 +213,6 @@ export default function HealthHistory() {
             </button>
           </div>
 
-          {/* ✅ Filter button */}
           <div>
             <button className="filter-toggle-btn" onClick={() => setFilterOpen(!filterOpen)}>
               {filterOpen ? 'Đóng bộ lọc' : 'Bộ lọc'}
@@ -267,7 +271,6 @@ export default function HealthHistory() {
             </table>
           </div>
 
-          {/* Pagination */}
           <div className="pagination">
             <button onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1}>
               ⬅ Trước

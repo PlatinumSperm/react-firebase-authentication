@@ -32,12 +32,16 @@ export default function Home() {
   const lastValueRef = useRef({ bpm: 0, spo2: 0, ir: 0, temp: 0 });
   const [status, setStatus] = useState({ text: "Không tìm thấy dữ liệu", type: "none" });
 
-  // ✅ Check auth
+  const [uid, setUid] = useState(null);
+
+  // ✅ Check auth và lấy UID
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setLoading(false);
       if (!user) {
         navigate("/signin");
+      } else {
+        setUid(user.uid);
       }
     });
     return () => unsubscribe();
@@ -45,8 +49,10 @@ export default function Home() {
 
   // ✅ MQTT connect (update chart theo gói dữ liệu)
   useEffect(() => {
+    if (!uid) return; // đợi có UID mới kết nối MQTT
+
     // Khôi phục dữ liệu từ localStorage nếu có
-    const savedData = localStorage.getItem('healthData');
+    const savedData = localStorage.getItem("healthData");
     if (savedData) {
       const parsedData = JSON.parse(savedData);
       setChartData(parsedData.chartData || []);
@@ -61,7 +67,8 @@ export default function Home() {
 
     client.on("connect", () => {
       console.log("Connected to MQTT");
-      client.subscribe("thongtinbenhnhan");
+      // ✅ Subscribe theo UID
+      client.subscribe(`thongtinbenhnhan/${uid}`);
     });
 
     const handleMessage = (topic, message) => {
@@ -82,7 +89,7 @@ export default function Home() {
           timeStyle: "medium",
         });
 
-        setChartData(prev => {
+        setChartData((prev) => {
           const newChartData = [
             ...prev.slice(-49),
             {
@@ -97,9 +104,9 @@ export default function Home() {
           const dataToStore = {
             chartData: newChartData,
             lastValue: newValues,
-            timestamp: now
+            timestamp: now,
           };
-          localStorage.setItem('healthData', JSON.stringify(dataToStore));
+          localStorage.setItem("healthData", JSON.stringify(dataToStore));
 
           return newChartData;
         });
@@ -117,28 +124,26 @@ export default function Home() {
     client.on("message", handleMessage);
 
     return () => {
-      client.unsubscribe("thongtinbenhnhan");
+      client.unsubscribe(`thongtinbenhnhan/${uid}`);
       client.end();
     };
-  }, []); // Chỉ chạy một lần khi component mount
+  }, [uid]);
 
-// thêm useEffect để cập nhật trạng thái
+  // thêm useEffect để cập nhật trạng thái
   useEffect(() => {
-  if (bpm === null || spo2 === null || temp === null) {
-    setStatus({ text: "Không tìm thấy dữ liệu", type: "none" });
-  } else {
-    const isNormal =
-      bpm >= 60 && bpm <= 100 &&
-      spo2 >= 90 &&
-      temp >= 20 && temp <= 34;
-
-    if (isNormal) {
-      setStatus({ text: "Trạng thái: ổn định", type: "normal" });
+    if (bpm === null || spo2 === null || temp === null) {
+      setStatus({ text: "Không tìm thấy dữ liệu", type: "none" });
     } else {
-      setStatus({ text: "Trạng thái: báo động", type: "alert" });
+      const isNormal =
+        bpm >= 60 && bpm <= 100 && spo2 >= 90 && temp >= 20 && temp <= 34;
+
+      if (isNormal) {
+        setStatus({ text: "Trạng thái: ổn định", type: "normal" });
+      } else {
+        setStatus({ text: "Trạng thái: báo động", type: "alert" });
+      }
     }
-  }
-}, [bpm, spo2, temp]);
+  }, [bpm, spo2, temp]);
 
   // ✅ Card update mỗi 1s (không phụ thuộc tốc độ MQTT)
   useEffect(() => {
@@ -147,7 +152,7 @@ export default function Home() {
       setSpo2(lastValueRef.current.spo2);
       setTemp(lastValueRef.current.temp);
       setIr(lastValueRef.current.ir);
-    }, 1000); // update card mỗi 1 giây
+    }, 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -167,10 +172,9 @@ export default function Home() {
       strokeWidth="2"
       fill="none"
       animate={{ d: path }}
-      transition={{ duration: 0.1, ease: "linear" }} // 0.1s đúng với tần suất dữ liệu
+      transition={{ duration: 0.1, ease: "linear" }}
     />
   );
-
 
   return (
     <>
@@ -179,7 +183,7 @@ export default function Home() {
       <div className="home-container">
         {/* LEFT */}
         <div className="left-panel">
-           <h2 className="section-title">Chỉ số hiện tại</h2>
+          <h2 className="section-title">Chỉ số hiện tại</h2>
           <div className="info-card heart">
             <div className="icon">❤️</div>
             <div className="info-content">
@@ -235,12 +239,12 @@ export default function Home() {
               ? "Sơ đồ SpO₂"
               : "Sơ đồ tín hiệu PPG"}
           </h3>
-            
+
           <ResponsiveContainer width="100%" height={350}>
             <LineChart
               data={chartData}
               margin={{ top: 20, right: 20, left: 10, bottom: 20 }}
-              style={{ backgroundColor: "#fff" }} // nền trắng
+              style={{ backgroundColor: "#fff" }}
             >
               <motion.g
                 key={chartData.length}
@@ -254,7 +258,12 @@ export default function Home() {
                   tick={{ fill: "#333", fontSize: 12 }}
                   axisLine={{ stroke: "#333" }}
                 >
-                  <Label value="Thời gian" offset={-5} position="insideBottom" fill="#333" />
+                  <Label
+                    value="Thời gian"
+                    offset={-5}
+                    position="insideBottom"
+                    fill="#333"
+                  />
                 </XAxis>
 
                 {chartType === "BPM" && (
@@ -263,7 +272,12 @@ export default function Home() {
                     tick={{ fill: "#333", fontSize: 12 }}
                     axisLine={{ stroke: "#333" }}
                   >
-                    <Label value="BPM" angle={-90} position="insideLeft" fill="#333" />
+                    <Label
+                      value="BPM"
+                      angle={-90}
+                      position="insideLeft"
+                      fill="#333"
+                    />
                   </YAxis>
                 )}
                 {chartType === "SpO2" && (
@@ -272,12 +286,25 @@ export default function Home() {
                     tick={{ fill: "#333", fontSize: 12 }}
                     axisLine={{ stroke: "#333" }}
                   >
-                    <Label value="%" angle={-90} position="insideLeft" fill="#333" />
+                    <Label
+                      value="%"
+                      angle={-90}
+                      position="insideLeft"
+                      fill="#333"
+                    />
                   </YAxis>
                 )}
                 {chartType === "IR" && (
-                  <YAxis tick={{ fill: "#333", fontSize: 12 }} axisLine={{ stroke: "#333" }}>
-                    <Label value="PPG" angle={-90} position="insideLeft" fill="#333" />
+                  <YAxis
+                    tick={{ fill: "#333", fontSize: 12 }}
+                    axisLine={{ stroke: "#333" }}
+                  >
+                    <Label
+                      value="PPG"
+                      angle={-90}
+                      position="insideLeft"
+                      fill="#333"
+                    />
                   </YAxis>
                 )}
 
@@ -296,7 +323,9 @@ export default function Home() {
                     dot={false}
                     isAnimationActive={false}
                     content={({ points }) => {
-                      const path = `M${points.map((p) => `${p.x},${p.y}`).join("L")}`;
+                      const path = `M${points
+                        .map((p) => `${p.x},${p.y}`)
+                        .join("L")}`;
                       return <MotionLine path={path} stroke="#00b300" />;
                     }}
                   />
@@ -310,7 +339,9 @@ export default function Home() {
                     dot={false}
                     isAnimationActive={false}
                     content={({ points }) => {
-                      const path = `M${points.map((p) => `${p.x},${p.y}`).join("L")}`;
+                      const path = `M${points
+                        .map((p) => `${p.x},${p.y}`)
+                        .join("L")}`;
                       return <MotionLine path={path} stroke="#00bfff" />;
                     }}
                   />
@@ -324,7 +355,9 @@ export default function Home() {
                     dot={false}
                     isAnimationActive={false}
                     content={({ points }) => {
-                      const path = `M${points.map((p) => `${p.x},${p.y}`).join("L")}`;
+                      const path = `M${points
+                        .map((p) => `${p.x},${p.y}`)
+                        .join("L")}`;
                       return <MotionLine path={path} stroke="#ff9900" />;
                     }}
                   />

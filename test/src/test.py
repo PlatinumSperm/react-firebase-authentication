@@ -6,7 +6,7 @@ import random
 
 broker = "broker.emqx.io"
 port = 1883
-topic = "thongtinbenhnhan"
+topic = "thongtinbenhnhan/f2bSibFN4iNORrveDvPaPsAnWrr2"
 username = "Bao"
 password = "123123123"
 
