@@ -29,7 +29,7 @@ export default function Navbar() {
 </Link>
       <ul className="navbar-menu">
         <li><Link to="/">Nhịp tim</Link></li>
-        <li><Link to="/health-history">Lịch sử sức khỏe</Link></li>
+        <li><Link to="/health-history">Lịch sử báo động</Link></li>
         <li><Link to="/device-settings">Thiết lập thiết bị</Link></li>
       </ul>
       {user ? (

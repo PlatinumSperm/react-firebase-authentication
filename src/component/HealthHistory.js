@@ -9,7 +9,6 @@ import './HealthHistory.css';
 export default function HealthHistory() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState('all'); // 'all' or 'alerts'
   const [uid, setUid] = useState(null);
 
   const [healthData, setHealthData] = useState([]);
@@ -25,13 +24,22 @@ export default function HealthHistory() {
 
   // ✅ Filter state
   const [filterOpen, setFilterOpen] = useState(false);
-  const [filterDate, setFilterDate] = useState('');
   const [filterTimeFrom, setFilterTimeFrom] = useState('');
   const [filterTimeTo, setFilterTimeTo] = useState('');
   const [filterMetrics, setFilterMetrics] = useState({
     bpm: false,
     spo2: false,
     temp: false
+  });
+  // State to store active filters
+  const [activeFilters, setActiveFilters] = useState({
+    timeFrom: '',
+    timeTo: '',
+    metrics: {
+      bpm: false,
+      spo2: false,
+      temp: false
+    }
   });
 
   // Auth
@@ -83,19 +91,20 @@ export default function HealthHistory() {
           newData.spo2 < 90 ||
           newData.temp < 25 || newData.temp > 29;
 
-        const timestamp = new Date().toLocaleString('vi-VN', {
-          hour12: false,
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
-        });
+        const now = new Date();
 
         const dataWithStatus = {
           ...newData,
-          timestamp,
+          timestamp: now.toLocaleString('vi-VN', {
+            hour12: false,
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          }),
+          timestampRaw: now.toISOString(), // ✅ thêm trường để so sánh filter
           status: isAlert ? 'alert' : 'normal',
           alerts: {
             bpm: newData.bpm < 60 || newData.bpm > 100,
@@ -125,26 +134,27 @@ export default function HealthHistory() {
     };
   }, [uid]); // ✅ chạy lại khi uid thay đổi
 
-  // Filtered data
-  const filteredData =
-    viewMode === 'alerts'
-      ? healthData.filter(item => item.status === 'alert')
-      : healthData;
+  // Filtered data - Chỉ lấy dữ liệu báo động
+  const filteredData = healthData.filter(item => item.status === 'alert');
 
   // ✅ Apply custom filter
   const applyFilter = (data) => {
     return data.filter(item => {
       if (item.status !== 'alert') return false;
 
-      if (filterDate && !item.timestamp.startsWith(filterDate)) return false;
-
-      if (filterTimeFrom || filterTimeTo) {
-        const timePart = item.timestamp.split(', ')[1];
-        if (filterTimeFrom && timePart < filterTimeFrom) return false;
-        if (filterTimeTo && timePart > filterTimeTo) return false;
+      if (activeFilters.timeFrom || activeFilters.timeTo) {
+        const itemDate = new Date(item.timestampRaw); // dùng ISO để so sánh
+        if (activeFilters.timeFrom) {
+          const fromDate = new Date(activeFilters.timeFrom);
+          if (itemDate < fromDate) return false;
+        }
+        if (activeFilters.timeTo) {
+          const toDate = new Date(activeFilters.timeTo);
+          if (itemDate > toDate) return false;
+        }
       }
 
-      const selectedMetrics = Object.keys(filterMetrics).filter(k => filterMetrics[k]);
+      const selectedMetrics = Object.keys(activeFilters.metrics).filter(k => activeFilters.metrics[k]);
       if (selectedMetrics.length > 0) {
         const matched = selectedMetrics.some(metric => item.alerts[metric]);
         if (!matched) return false;
@@ -177,10 +187,18 @@ export default function HealthHistory() {
   };
 
   const handleResetFilter = () => {
-    setFilterDate('');
     setFilterTimeFrom('');
     setFilterTimeTo('');
     setFilterMetrics({ bpm: false, spo2: false, temp: false });
+    setActiveFilters({
+      timeFrom: '',
+      timeTo: '',
+      metrics: {
+        bpm: false,
+        spo2: false,
+        temp: false
+      }
+    });
   };
 
   if (loading) {
@@ -195,52 +213,92 @@ export default function HealthHistory() {
     <>
       <Navbar />
       <div className="history-container">
-        <h1>Lịch sử sức khỏe</h1>
+        <h1>Lịch sử báo động</h1>
 
-        <div className="view-toggle" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <button
-              className={viewMode === 'all' ? 'active' : ''}
-              onClick={() => setViewMode('all')}
-            >
-              Hiển thị lịch sử
-            </button>
-            <button
-              className={viewMode === 'alerts' ? 'active' : ''}
-              onClick={() => setViewMode('alerts')}
-            >
-              Lịch sử báo động
-            </button>
-          </div>
-
-          <div>
-            <button className="filter-toggle-btn" onClick={() => setFilterOpen(!filterOpen)}>
-              {filterOpen ? 'Đóng bộ lọc' : 'Bộ lọc'}
-            </button>
-          </div>
+        <div className="view-toggle" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+          <button className="filter-toggle-btn" onClick={() => setFilterOpen(!filterOpen)}>
+            {filterOpen ? 'Đóng bộ lọc' : 'Bộ lọc'}
+          </button>
         </div>
 
         {filterOpen && (
-          <div className="filter-panel">
-            <div className="filter-row">
-              <label>Ngày:</label>
-              <input type="date" value={filterDate} onChange={e => setFilterDate(e.target.value)} />
-            </div>
-            <div className="filter-row">
-              <label>Từ giờ:</label>
-              <input type="time" value={filterTimeFrom} onChange={e => setFilterTimeFrom(e.target.value)} />
-              <label>Đến giờ:</label>
-              <input type="time" value={filterTimeTo} onChange={e => setFilterTimeTo(e.target.value)} />
-            </div>
-            <div className="filter-row">
-              <label>Báo động:</label>
-              <label><input type="checkbox" checked={filterMetrics.bpm} onChange={() => setFilterMetrics({...filterMetrics, bpm: !filterMetrics.bpm})} /> BPM</label>
-              <label><input type="checkbox" checked={filterMetrics.spo2} onChange={() => setFilterMetrics({...filterMetrics, spo2: !filterMetrics.spo2})} /> SpO₂</label>
-              <label><input type="checkbox" checked={filterMetrics.temp} onChange={() => setFilterMetrics({...filterMetrics, temp: !filterMetrics.temp})} /> Nhiệt độ</label>
-            </div>
-            <div className="filter-row">
-              <button className="filter-ok-btn" onClick={() => setCurrentPage(1)}>OK</button>
-              <button className="filter-reset-btn" onClick={handleResetFilter}>Reset</button>
+          <div className="modal-overlay">
+            <div className="filter-panel">
+              <h2>Bộ lọc dữ liệu</h2>
+              
+              <div className="filter-row">
+                <label>Khoảng thời gian:</label>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '14px' }}>Từ:</label>
+                    <input 
+                      type="datetime-local" 
+                      value={filterTimeFrom} 
+                      onChange={e => setFilterTimeFrom(e.target.value)}
+                      step="1"
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '14px' }}>Đến:</label>
+                    <input 
+                      type="datetime-local" 
+                      value={filterTimeTo} 
+                      onChange={e => setFilterTimeTo(e.target.value)}
+                      step="1"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="filter-row">
+                <label>Lọc theo loại báo động:</label>
+                <div className="filter-metrics">
+                  <label>
+                    <input 
+                      type="checkbox" 
+                      checked={filterMetrics.bpm} 
+                      onChange={() => setFilterMetrics({...filterMetrics, bpm: !filterMetrics.bpm})}
+                    />
+                    Nhịp tim
+                  </label>
+                  <label>
+                    <input 
+                      type="checkbox" 
+                      checked={filterMetrics.spo2} 
+                      onChange={() => setFilterMetrics({...filterMetrics, spo2: !filterMetrics.spo2})}
+                    />
+                    SpO₂
+                  </label>
+                  <label>
+                    <input 
+                      type="checkbox" 
+                      checked={filterMetrics.temp} 
+                      onChange={() => setFilterMetrics({...filterMetrics, temp: !filterMetrics.temp})}
+                    />
+                    Nhiệt độ
+                  </label>
+                </div>
+              </div>
+
+              <div className="filter-buttons">
+                <button className="filter-reset-btn" onClick={handleResetFilter}>
+                  Reset
+                </button>
+                <button className="filter-cancel-btn" onClick={() => setFilterOpen(false)}>
+                  Cancel
+                </button>
+                <button className="filter-ok-btn" onClick={() => {
+                  setCurrentPage(1);
+                  setActiveFilters({
+                    timeFrom: filterTimeFrom,
+                    timeTo: filterTimeTo,
+                    metrics: { ...filterMetrics }
+                  });
+                  setFilterOpen(false);
+                }}>
+                  OK
+                </button>
+              </div>
             </div>
           </div>
         )}
