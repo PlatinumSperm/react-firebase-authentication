@@ -32,17 +32,15 @@ export default function Navbar() {
         <li><Link to="/health-history">Lịch sử báo động</Link></li>
         <li><Link to="/device-settings">Thiết lập thiết bị</Link></li>
       </ul>
-      {user ? (
+      {user && (
         <div className="user-controls">
+          <img 
+            src={user.photoURL || '/default-avatar.png'} 
+            alt="Avatar" 
+            className="user-avatar" 
+          />
           <span className="user-email">{user.email}</span>
-          <button onClick={handleLogout} className="navbar-btn">
-            Đăng xuất
-          </button>
         </div>
-      ) : (
-        <Link to="/signin">
-          <button className="navbar-btn">Đăng nhập</button>
-        </Link>
       )}
     </nav>
   );

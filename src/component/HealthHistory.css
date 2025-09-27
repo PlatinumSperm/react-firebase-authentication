@@ -149,12 +149,19 @@ tr.alert {
 }
 
 .pagination button {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 6px;
-  background-color: #007bff;
-  color: white;
+  padding: 4px 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background-color: #fff;
+  color: #333;
   cursor: pointer;
+  font-size: 13px;
+}
+
+.pagination button:hover:not(:disabled) {
+  background-color: #e6f7ff;
+  border-color: #1890ff;
+  color: #1890ff;
 }
 
 .pagination button:disabled {
@@ -163,13 +170,15 @@ tr.alert {
 }
 
 .filter-toggle-btn {
-  background-color: #4f46e5;
-  color: rgb(0, 0, 0);
-  padding: 6px 14px;
-  border-radius: 8px;
-  border: none;
+  background-color: #f0f0f0;
+  color: #333;
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid #d9d9d9;
   cursor: pointer;
+  font-size: 13px;
   font-weight: 500;
+  margin-left: auto;
 }
 
 .modal-overlay {
