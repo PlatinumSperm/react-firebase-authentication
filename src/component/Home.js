@@ -4,6 +4,7 @@ import { auth } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import Navbar from "./Navbar";
 import Hero from "./Hero";
+import { activityThresholds, analyzeHeartData, getSuggestedActivity } from "../utils/heartrules";
 import mqtt from "mqtt";
 import {
   LineChart,
@@ -33,6 +34,27 @@ export default function Home() {
   const [status, setStatus] = useState({ text: "Không tìm thấy dữ liệu", type: "none" });
 
   const [uid, setUid] = useState(null);
+  const [activityMode, setActivityMode] = useState("Nghỉ ngơi");
+  const [showActivityDropdown, setShowActivityDropdown] = useState(false);
+  const [showWarningPopup, setShowWarningPopup] = useState(false);
+  const [showErrorPopup, setShowErrorPopup] = useState(false);
+  const [showAlertPopup, setShowAlertPopup] = useState(false);
+  const [warningMessage, setWarningMessage] = useState("");
+  const [countdownTime, setCountdownTime] = useState(10);
+  const [recentBpmValues, setRecentBpmValues] = useState([]);
+  const [suggestedActivity, setSuggestedActivity] = useState(null);
+  
+  // Refs for timers
+  const warningTimerRef = useRef(null);
+  const countdownTimerRef = useRef(null);
+
+  // Activity thresholds
+  const activityThresholds = {
+    "Nghỉ ngơi": { min: 60, max: 100 },
+    "Hoạt động nhẹ": { min: 70, max: 120 },
+    "Vận động mạnh": { min: 90, max: 160 },
+    "Ngủ": { min: 50, max: 85 }
+  };
 
   // ✅ Check auth và lấy UID
   useEffect(() => {
@@ -129,21 +151,95 @@ export default function Home() {
     };
   }, [uid]);
 
+  // Theo dõi BPM gần đây và kiểm tra ngưỡng
+  useEffect(() => {
+    if (bpm === null) return;
+
+    // Cập nhật danh sách BPM gần đây
+    setRecentBpmValues(prev => [...prev.slice(-5), bpm]);
+
+    // Chỉ kiểm tra sau khi có đủ 5 giá trị
+    if (recentBpmValues.length >= 5) {
+      const avgRecentBpm = recentBpmValues.reduce((a, b) => a + b, 0) / recentBpmValues.length;
+      const analysis = analyzeHeartData(avgRecentBpm, spo2, temp, activityMode);
+      
+      if (analysis.warnings.length > 0 && analysis.isActivityChange) {
+        // Clear timers cũ
+        if (warningTimerRef.current) {
+          clearTimeout(warningTimerRef.current);
+          warningTimerRef.current = null;
+        }
+        if (countdownTimerRef.current) {
+          clearInterval(countdownTimerRef.current);
+          countdownTimerRef.current = null;
+        }
+
+        setSuggestedActivity(analysis.suggestedActivity);
+        setWarningMessage(`Bạn đang ${analysis.suggestedActivity.toLowerCase()} phải không?`);
+        setShowWarningPopup(true);
+        setCountdownTime(10);
+
+        // Bắt đầu đếm ngược
+        const countdownInterval = setInterval(() => {
+          setCountdownTime(prev => {
+            if (prev <= 1) {
+              clearInterval(countdownInterval);
+              if (showWarningPopup) {
+                setShowWarningPopup(false);
+                setShowAlertPopup(true);
+              }
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+
+        // Set timer cho popup
+        const warningTimeout = setTimeout(() => {
+          if (showWarningPopup) {
+            setShowWarningPopup(false);
+            setShowAlertPopup(true);
+            setStatus({ 
+              text: "Báo động! Nhịp tim đang trong trạng thái báo động", 
+              type: "alert" 
+            });
+          }
+        }, 10000);
+
+        countdownTimerRef.current = countdownInterval;
+        warningTimerRef.current = warningTimeout;
+      }
+    }
+
+    // Cleanup function
+    return () => {
+      if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+    };
+  }, [bpm, activityMode, spo2, temp, showWarningPopup]);
+
   // thêm useEffect để cập nhật trạng thái
   useEffect(() => {
     if (bpm === null || spo2 === null || temp === null) {
       setStatus({ text: "Không tìm thấy dữ liệu", type: "none" });
     } else {
-      const isNormal =
-        bpm >= 60 && bpm <= 100 && spo2 >= 90 && temp >= 20 && temp <= 34;
-
-      if (isNormal) {
-        setStatus({ text: "Trạng thái: ổn định", type: "normal" });
+      const analysis = analyzeHeartData(bpm, spo2, temp, activityMode);
+      
+      if (analysis.warnings.length === 0) {
+        setStatus({ 
+          text: `Trạng thái: ổn định (${activityMode})`, 
+          type: "normal" 
+        });
       } else {
-        setStatus({ text: "Trạng thái: báo động", type: "alert" });
+        if (!showWarningPopup && !showAlertPopup) {
+          setStatus({ 
+            text: `Trạng thái: ${analysis.warnings.join(", ")}`, 
+            type: "alert" 
+          });
+        }
       }
     }
-  }, [bpm, spo2, temp]);
+  }, [bpm, spo2, temp, activityMode, showWarningPopup, showAlertPopup]);
 
   // ✅ Card update mỗi 1s (không phụ thuộc tốc độ MQTT)
   useEffect(() => {
@@ -184,6 +280,76 @@ export default function Home() {
         {/* LEFT */}
         <div className="left-panel">
           <h2 className="section-title">Chỉ số hiện tại</h2>
+          <div className="activity-button" onClick={() => setShowActivityDropdown(!showActivityDropdown)}>
+            Chế độ vận động: {activityMode}
+            {showActivityDropdown && (
+              <div className="activity-dropdown">
+                {Object.keys(activityThresholds).map(mode => (
+                  <div 
+                    key={mode} 
+                    className="activity-option"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActivityMode(mode);
+                      setShowActivityDropdown(false);
+                    }}
+                  >
+                    {mode}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          
+          {showWarningPopup && (
+            <div className="popup-overlay">
+              <div className="popup-content">
+                <h3>{warningMessage}</h3>
+                <p className="countdown">Còn lại: {countdownTime}s</p>
+                <div className="popup-buttons">
+                  <button onClick={() => {
+                    // Clear all timers
+                    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+                    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+                    
+                    setShowWarningPopup(false);
+                    setActivityMode(suggestedActivity);
+                    setStatus({ 
+                      text: `Trạng thái: ${suggestedActivity} - Đã cập nhật trạng thái`, 
+                      type: "normal" 
+                    });
+                  }}>Có</button>
+                  <button onClick={() => {
+                    // Clear all timers
+                    if (warningTimerRef.current) clearTimeout(warningTimerRef.current);
+                    if (countdownTimerRef.current) clearInterval(countdownTimerRef.current);
+                    
+                    setShowWarningPopup(false);
+                    setShowErrorPopup(true);
+                  }}>Không</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showErrorPopup && (
+            <div className="popup-overlay">
+              <div className="popup-content error">
+                <h3>Lỗi thiết bị, vui lòng kiểm tra</h3>
+                <button onClick={() => setShowErrorPopup(false)}>Đóng</button>
+              </div>
+            </div>
+          )}
+
+          {showAlertPopup && (
+            <div className="popup-overlay">
+              <div className="popup-content alert">
+                <h3>Báo động! Nhịp tim đang trong trạng thái báo động</h3>
+                <button onClick={() => setShowAlertPopup(false)}>Đóng</button>
+              </div>
+            </div>
+          )}
+
           <div className="info-card heart">
             <div className="icon">❤️</div>
             <div className="info-content">
