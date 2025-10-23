@@ -87,7 +87,7 @@ export default function HealthHistory() {
         };
 
         const isAlert =
-          newData.bpm < 60 || newData.bpm > 100 ||
+          newData.bpm < 90 || newData.bpm > 110 ||
           newData.spo2 < 90 ||
           newData.temp < 25 || newData.temp > 29;
 
@@ -107,7 +107,7 @@ export default function HealthHistory() {
           timestampRaw: now.toISOString(), // ✅ thêm trường để so sánh filter
           status: isAlert ? 'alert' : 'normal',
           alerts: {
-            bpm: newData.bpm < 60 || newData.bpm > 100,
+            bpm: newData.bpm < 60 || newData.bpm > 160,
             spo2: newData.spo2 < 90,
             temp: newData.temp < 25 || newData.temp > 29
           }

@@ -10,10 +10,10 @@ export const activityThresholds = {
 
 export function getSuggestedActivity(bpm) {
   // Gợi ý hoạt động dựa trên nhịp tim
-  if (bpm >= 50 && bpm < 85) return "Ngủ";
-  if (bpm >= 60 && bpm < 100) return "Nghỉ ngơi";
-  if (bpm >= 70 && bpm < 120) return "Hoạt động nhẹ";
-  if (bpm >= 90 && bpm < 160) return "Vận động mạnh";
+  if (bpm >= 60 && bpm < 85) return "Ngủ";
+  if (bpm >= 60 && bpm < 94) return "Nghỉ ngơi";
+  if (bpm >= 95 && bpm < 120) return "Hoạt động nhẹ";
+  if (bpm >= 121 && bpm < 160) return "Vận động mạnh";
   return "Nghỉ ngơi"; // Mặc định về trạng thái nghỉ ngơi
 }
 

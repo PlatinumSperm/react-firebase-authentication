@@ -17,9 +17,9 @@ client.connect(broker, port, 60)
 while True:
     # Tạo dữ liệu giả lập
     data = {
-        "BPM": random.randint(60, 100),      # Nhịp tim
-        "SpO2": random.randint(90, 100),     # SpO2
-        "TempC": round(random.uniform(25, 30), 1),  # Nhiệt độ
+        "BPM": random.randint(95, 110),      # Nhịp tim
+        "SpO2": random.randint(98, 100),     # SpO2
+        "TempC": round(random.uniform(26, 28), 1),  # Nhiệt độ
         "IR": random.randint(50000, 70000),  # Tín hiệu PPG (IR)
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }

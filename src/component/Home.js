@@ -50,9 +50,9 @@ export default function Home() {
 
   // Activity thresholds
   const activityThresholds = {
-    "Nghỉ ngơi": { min: 60, max: 100 },
-    "Hoạt động nhẹ": { min: 70, max: 120 },
-    "Vận động mạnh": { min: 90, max: 160 },
+    "Nghỉ ngơi": { min: 60, max: 94 },
+    "Hoạt động nhẹ": { min: 95, max: 120 },
+    "Vận động mạnh": { min: 121, max: 160 },
     "Ngủ": { min: 50, max: 85 }
   };
 
@@ -175,14 +175,14 @@ export default function Home() {
         }
 
         setSuggestedActivity(analysis.suggestedActivity);
-        setWarningMessage(`Bạn đang ${analysis.suggestedActivity.toLowerCase()} phải không?`);
-        setShowWarningPopup(true);
         setCountdownTime(10);
-
-        // Bắt đầu đếm ngược
+        setShowWarningPopup(true);
+        
+        // Bắt đầu đếm ngược và cập nhật message
         const countdownInterval = setInterval(() => {
           setCountdownTime(prev => {
-            if (prev <= 1) {
+            const newCount = prev - 1;
+            if (newCount <= 0) {
               clearInterval(countdownInterval);
               if (showWarningPopup) {
                 setShowWarningPopup(false);
@@ -190,9 +190,14 @@ export default function Home() {
               }
               return 0;
             }
-            return prev - 1;
+            // Cập nhật message với thời gian đếm ngược
+            setWarningMessage(`Bạn đang ${analysis.suggestedActivity.toLowerCase()} phải không? (${newCount}s)`);
+            return newCount;
           });
         }, 1000);
+
+        // Set ban đầu cho message
+        setWarningMessage(`Bạn đang ${analysis.suggestedActivity.toLowerCase()} phải không? (10s)`);
 
         // Set timer cho popup
         const warningTimeout = setTimeout(() => {
@@ -200,7 +205,7 @@ export default function Home() {
             setShowWarningPopup(false);
             setShowAlertPopup(true);
             setStatus({ 
-              text: "Báo động! Nhịp tim đang trong trạng thái báo động", 
+              text: "Báo động! Nhịp tim cực kì bất thường", 
               type: "alert" 
             });
           }
@@ -304,8 +309,8 @@ export default function Home() {
           {showWarningPopup && (
             <div className="popup-overlay">
               <div className="popup-content">
-                <h3>{warningMessage}</h3>
-                <p className="countdown">Còn lại: {countdownTime}s</p>
+                <div className="countdown-display">{countdownTime}s</div>
+                <h3>Bạn đang {suggestedActivity?.toLowerCase()} phải không?</h3>
                 <div className="popup-buttons">
                   <button onClick={() => {
                     // Clear all timers
@@ -344,7 +349,7 @@ export default function Home() {
           {showAlertPopup && (
             <div className="popup-overlay">
               <div className="popup-content alert">
-                <h3>Báo động! Nhịp tim đang trong trạng thái báo động</h3>
+                <h3>Báo động! Nhịp tim cực kì bất thường</h3>
                 <button onClick={() => setShowAlertPopup(false)}>Đóng</button>
               </div>
             </div>
