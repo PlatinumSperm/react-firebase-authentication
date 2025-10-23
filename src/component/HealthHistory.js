@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import mqtt from 'mqtt';
+import { analyzeHeartData } from '../utils/heartrules';
 import Navbar from './Navbar';
 import './HealthHistory.css';
 
@@ -86,10 +87,9 @@ export default function HealthHistory() {
           ir: data.IR !== -999 ? data.IR : prevData.ir
         };
 
-        const isAlert =
-          newData.bpm < 90 || newData.bpm > 110 ||
-          newData.spo2 < 90 ||
-          newData.temp < 25 || newData.temp > 29;
+        // Use analyzeHeartData to determine warnings/status similarly to Home.js
+        // We don't have activityMode here, default to 'Nghỉ ngơi' as in heartrules
+        const analysis = analyzeHeartData(newData.bpm, newData.spo2, newData.temp, 'Nghỉ ngơi');
 
         const now = new Date();
 
@@ -105,11 +105,11 @@ export default function HealthHistory() {
             second: '2-digit'
           }),
           timestampRaw: now.toISOString(), // ✅ thêm trường để so sánh filter
-          status: isAlert ? 'alert' : 'normal',
+          status: analysis.warnings.length > 0 ? 'alert' : 'normal',
           alerts: {
-            bpm: newData.bpm < 60 || newData.bpm > 160,
-            spo2: newData.spo2 < 90,
-            temp: newData.temp < 25 || newData.temp > 29
+            bpm: analysis.warnings.includes('Nhịp tim bất thường'),
+            spo2: analysis.warnings.includes('SpO2 thấp'),
+            temp: analysis.warnings.includes('Nhiệt độ bất thường') || false
           }
         };
 

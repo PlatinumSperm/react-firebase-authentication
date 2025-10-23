@@ -32,6 +32,7 @@ export default function Home() {
 
   const lastValueRef = useRef({ bpm: 0, spo2: 0, ir: 0, temp: 0 });
   const [status, setStatus] = useState({ text: "Không tìm thấy dữ liệu", type: "none" });
+  const [isNoData, setIsNoData] = useState(false);
 
   const [uid, setUid] = useState(null);
   const [activityMode, setActivityMode] = useState("Nghỉ ngơi");
@@ -47,6 +48,7 @@ export default function Home() {
   // Refs for timers
   const warningTimerRef = useRef(null);
   const countdownTimerRef = useRef(null);
+  const noDataTimerRef = useRef(null);
 
   // Activity thresholds
   const activityThresholds = {
@@ -105,6 +107,47 @@ export default function Home() {
         const newValues = { bpm: newBpm, spo2: newSpo2, ir: newIr, temp: newTemp };
         lastValueRef.current = newValues;
 
+        // clear no-data state because we just received data
+        if (isNoData) {
+          setIsNoData(false);
+        }
+
+        // Reset/refresh the no-data timer whenever a message arrives
+        if (noDataTimerRef.current) {
+          clearTimeout(noDataTimerRef.current);
+        }
+        // If no message arrives within 3s, reset values and push a zero datapoint to chart
+        noDataTimerRef.current = setTimeout(() => {
+          const zeroValues = { bpm: 0, spo2: 0, ir: 0, temp: 0 };
+          lastValueRef.current = zeroValues;
+          setBpm(0);
+          setSpo2(0);
+          setTemp(0);
+          setIr(0);
+
+          // mark no data state and set a visible status card
+          setIsNoData(true);
+          setStatus({ text: "Chưa nhận dữ liệu từ cảm biến", type: "none" });
+
+          const nowZero = new Date().toLocaleTimeString("vi-VN", {
+            hour12: false,
+            timeStyle: "medium",
+          });
+
+          // push a zero point so chart reflects no-data
+          setChartData(prev => {
+            const newChartData = [...prev.slice(-49), { time: nowZero, bpm: 0, spo2: 0, ir: 0 }];
+            // also update localStorage similar to normal flow
+            const dataToStore = {
+              chartData: newChartData,
+              lastValue: zeroValues,
+              timestamp: nowZero,
+            };
+            localStorage.setItem("healthData", JSON.stringify(dataToStore));
+            return newChartData;
+          });
+        }, 3000);
+
         // ✅ update chart ngay (theo đúng tốc độ MQTT 0.1s)
         const now = new Date().toLocaleTimeString("vi-VN", {
           hour12: false,
@@ -147,6 +190,10 @@ export default function Home() {
 
     return () => {
       client.unsubscribe(`thongtinbenhnhan/${uid}`);
+      if (noDataTimerRef.current) {
+        clearTimeout(noDataTimerRef.current);
+        noDataTimerRef.current = null;
+      }
       client.end();
     };
   }, [uid]);
@@ -225,6 +272,8 @@ export default function Home() {
 
   // thêm useEffect để cập nhật trạng thái
   useEffect(() => {
+    if (isNoData) return; // don't override the explicit no-data status
+
     if (bpm === null || spo2 === null || temp === null) {
       setStatus({ text: "Không tìm thấy dữ liệu", type: "none" });
     } else {
